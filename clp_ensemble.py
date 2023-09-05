@@ -15,30 +15,30 @@ from tqdm import tqdm
 from ultralytics import YOLO
 
 
-# Specify the path to model config and checkpoint file
-config_file_1 = '/root/De-identification-CLP/weights/dino_2044_new_50/dino-5scale_swin-l_8xb2-36e_coco.py'
-# config_file_2 = '/root/mmdetection/configs/clp/effb3_fpn_8xb4-crop896-1x_clp.py'
-# config_file_3 = '/root/mmdetection/configs/clp/dcnv2_clp.py'
-checkpoint_file_4 = 'yolo'
-config_list = [config_file_1, checkpoint_file_4]
+# # Specify the path to model config and checkpoint file
+# config_file_1 = '/root/De-identification-CLP/weights/dino_2044_new_50/dino-5scale_swin-l_8xb2-36e_coco.py'
+# # config_file_2 = '/root/mmdetection/configs/clp/effb3_fpn_8xb4-crop896-1x_clp.py'
+# # config_file_3 = '/root/mmdetection/configs/clp/dcnv2_clp.py'
+# checkpoint_file_4 = 'yolo'
+# config_list = [config_file_1, checkpoint_file_4]
 
-checkpoint_file_1 = '/root/De-identification-CLP/weights/dino_2044_new_50/best_coco_bbox_mAP_epoch_38.pth'
-# checkpoint_file_2 = '/root/mmdetection/work_dirs/effb3_2044_200/epoch_100.pth'
-# checkpoint_file_3 = '/root/mmdetection/work_dirs/dcnv2_2044_200/epoch_100.pth'
-checkpoint_file_4 = '/root/De-identification-CLP/weights/yolov8/best_1280.pt'
-checkpoint_file_list = [checkpoint_file_1, checkpoint_file_4]
+# checkpoint_file_1 = '/root/De-identification-CLP/weights/dino_2044_new_50/best_coco_bbox_mAP_epoch_38.pth'
+# # checkpoint_file_2 = '/root/mmdetection/work_dirs/effb3_2044_200/epoch_100.pth'
+# # checkpoint_file_3 = '/root/mmdetection/work_dirs/dcnv2_2044_200/epoch_100.pth'
+# checkpoint_file_4 = '/root/De-identification-CLP/weights/yolov8/best_1280.pt'
+# checkpoint_file_list = [checkpoint_file_1, checkpoint_file_4]
 
-test_img_prefix = '/root/dataset_clp/dataset_2044/test/images/'
+# test_img_prefix = '/root/dataset_clp/dataset_2044/test/images/'
 
-weights = [1,1]
+# weights = [1,1]
 
-dir_prefix = ''
+# dir_prefix = ''
 
-final_list = []
-wbf_list = []
-img_boxes_list = []
-img_score_list = []
-img_labels_list = []
+# final_list = []
+# wbf_list = []
+# img_boxes_list = []
+# img_score_list = []
+# img_labels_list = []
 
 def init_models(config_list, checkpoint_file_list) :
     model_list = []

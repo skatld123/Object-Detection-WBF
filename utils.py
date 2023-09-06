@@ -34,8 +34,11 @@ def convert_scaled_predict(size, box):
 def boundingBoxes(labelPath, predictPath, imagePath):
     detections, groundtruths, classes = [], [], []
     gt_and_prediect = [labelPath, predictPath]
-    for idx, type_dir in enumerate(tqdm(gt_and_prediect)) :
-        for file in os.listdir(type_dir):
+    print("Read Annotations and Predict")
+    for idx, type_dir in enumerate(gt_and_prediect) :
+        if type_dir == labelPath : print("Read Annotation files")
+        else : print("Read Prediction files")
+        for file in tqdm(os.listdir(type_dir)):
             file_path = os.path.join(type_dir,file)
             filename = os.path.splitext(file)[0]
             
@@ -70,7 +73,7 @@ def boundingBoxes(labelPath, predictPath, imagePath):
 
 def boxPlot(boxlist, imagePath, savePath):
     labelfiles = sorted(list(set([filename for filename, _, _, _ in boxlist])))
-    for labelfile in labelfiles:
+    for labelfile in tqdm(labelfiles):
         rectinfos = []
         imgfilePath = os.path.join(imagePath, labelfile + ".jpg")
         img = cv.imread(imgfilePath)
@@ -89,8 +92,8 @@ def boxPlot(boxlist, imagePath, savePath):
             cv.rectangle(img, (x1, y1), (x2, y2), rectcolor, 4)
         cv.imwrite(f"{savePath}/{labelfile}.jpg", img)
 
-        img = mpimg.imread(f"{savePath}/{labelfile}.jpg")
-        plt.axis("off")
+        # img = mpimg.imread(f"{savePath}/{labelfile}.jpg")
+        # plt.axis("off")
 
 def getArea(box):
     return (box[2] - box[0] + 1) * (box[3] - box[1] + 1)
@@ -259,40 +262,3 @@ def mAP(result):
     mAP = ap / len(result)
     
     return mAP
-
-detections, groundtruths, classes = boundingBoxes(labelPath="/root/dataset_clp/dataset_2044/test/labels", 
-                                                  predictPath="/root/ensemble_model/result/predict", 
-                                                  imagePath="/root/dataset_clp/dataset_2044/test/images")
-print(detections)
-print(groundtruths)
-print(classes)
-
-# boxPlot(detections, "image", savePath="boxed_images/detection")
-# boxPlot(groundtruths, "image", savePath="boxed_images/groundtruth")
-# boxPlot(detections + groundtruths, "/root/dataset_clp/dataset_2044/test/images", savePath="/root/ensemble_model/test_img")
-
-# IoU
-boxA = detections[-1][-1]
-boxB = groundtruths[-1][-1]
-
-print(f"boxA coordinates : {(boxA)}")
-print(f"boxA area : {getArea(boxA)}")
-print(f"boxB coordinates : {(boxB)}")
-print(f"boxB area : {getArea(boxB)}")
-
-print(f"Union area of boxA and boxB : {getUnionAreas(boxA, boxB)}")
-
-print(f"Does boxes Intersect? : {boxesIntersect(boxA, boxB)}")
-
-print(f"Intersection area of boxA and boxB : {getIntersectionArea(boxA, boxB)}")
-
-print(f"IoU of boxA and boxB : {iou(boxA, boxB)}")
-
-result = AP(detections, groundtruths, classes)
-
-print(result)
-
-for r in result:
-    print("{:^8} AP : {}".format(num2class[str(r['class'])], r['AP']))
-print("---------------------------")
-print(f"mAP : {mAP(result)}")

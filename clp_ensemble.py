@@ -65,9 +65,7 @@ def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None,
         for i, file in enumerate(tqdm(natsorted(glob(data_path + '*')))):
             if idx in yolo_idx :
                 file_name = Path(file).stem
-                result = model(file, imgsz=1280, iou=threshold)
-                # print(result[0].tojson())
-                
+                result = model(file, imgsz=1280, iou=threshold, conf=0.25)
                 output = result[0].boxes
                 boxes, conf, cls = output.xyxyn.tolist(), output.conf.tolist(), output.cls.tolist()
                 if idx == 0 :
@@ -79,8 +77,8 @@ def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None,
                 ori_h, ori_w, _ = img.shape
                 scale_factor = [ori_w, ori_h, ori_w, ori_h]
                 result = inference_detector(model, img)
-                
                 # visualizer = VISUALIZERS.build(model.cfg.visualizer)
+                # visualizer.fig_save
                 # visualizer.dataset_meta = model.dataset_meta
                 # # # Show the results
                 # visualizer.add_datasample(
@@ -108,20 +106,19 @@ def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None,
                 if idx == 0 :
                     file_result_list[file_name] = [{"boxes_list":nms_boxes_list, "score_list":nms_score_list, "label_list":nms_labels_list}]
                 else : file_result_list[file_name].append({"boxes_list":nms_boxes_list, "score_list":nms_score_list, "label_list":nms_labels_list})
-
         print("file length : " + str(len(file_result_list)))
     return file_result_list
 
-def ensemble_result(config_list : list[str], checkpoint_file_list : list[str], iou_thr=0.55, skip_box_thr=0.0001, sigma = 0.1, weights=[1]) :
+def ensemble_result(config_list : list[str], checkpoint_file_list : list[str], data_path=None, save_dir=None,iou_thr=0.55, skip_box_thr=0.0001, sigma = 0.1, weights=[1]) :
     if len(config_list) > 0 and len(checkpoint_file_list) > 0:
         model_list, idx_yolo, idx_mmdet = init_models(config_list, checkpoint_file_list)
         
-        output_dic = inference_models(model_list, data_path=test_img_prefix, threshold=0.5, yolo_idx=idx_yolo, mmdet_idx=idx_mmdet)
+        output_dic = inference_models(model_list, data_path=data_path, threshold=0.5, yolo_idx=idx_yolo, mmdet_idx=idx_mmdet)
             
         result_annotation = {}
         for idx, fileName in enumerate(output_dic) : 
             # output file
-            f = open("/root/De-identification-CLP/ensemble_model/result/predict/" + fileName + ".txt", "w+")
+            f = open(save_dir + "predict/" + fileName + ".txt", "w+")
             
             wbf_box_list = []
             wbf_score_list = []
@@ -139,7 +136,7 @@ def ensemble_result(config_list : list[str], checkpoint_file_list : list[str], i
                 box_str = ' '.join(str(round(coord,4)) for coord in box)
                 f.write(str(label) + " " + str(round(score,4)) + " " + box_str +"\n")
             f.close()
-        with open('/root/De-identification-CLP/ensemble_model/result/result.json', 'w') as json_file:
+        with open((save_dir + 'result.json'), 'w') as json_file:
             json.dump(result_annotation, json_file)
             
 if __name__ == '__main__':

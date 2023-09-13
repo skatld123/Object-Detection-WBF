@@ -8,9 +8,8 @@ import numpy as np
 from tqdm import tqdm
 from collections import Counter
 
-num2class = {"0.0" : "license-plate", "1.0" : "vehicle"}
-
-# box : (centerX, centerY, width, height)
+# num2class = {"0.0" : "license-plate", "1.0" : "vehicle"}
+# # box : (centerX, centerY, width, height)
 def convertToAbsoluteValues(size, box):
     xIn = round(((2 * float(box[0]) - float(box[2])) * size[0] / 2))
     yIn = round(((2 * float(box[1]) - float(box[3])) * size[1] / 2))
@@ -263,3 +262,26 @@ def mAP(result):
     mAP = ap / len(result)
     
     return mAP
+
+
+def cal_mAP(num2class, detections, groundtruths, classes):
+    # IoU
+    boxA = detections[-1][-1]
+    boxB = groundtruths[-1][-1]
+
+    print(f"boxA coordinates : {(boxA)}")
+    print(f"boxA area : {getArea(boxA)}")
+    print(f"boxB coordinates : {(boxB)}")
+    print(f"boxB area : {getArea(boxB)}")
+    print(f"Union area of boxA and boxB : {getUnionAreas(boxA, boxB)}")
+    print(f"Does boxes Intersect? : {boxesIntersect(boxA, boxB)}")
+    print(
+        f"Intersection area of boxA and boxB : {getIntersectionArea(boxA, boxB)}")
+    print(f"IoU of boxA and boxB : {iou(boxA, boxB)}")
+
+    result = AP(detections, groundtruths, classes)
+
+    for r in result:
+        print("{:^8} AP : {}".format(num2class[str(r['class'])], r['AP']))
+    print("---------------------------")
+    print(f"mAP : {mAP(result)}")

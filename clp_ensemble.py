@@ -114,7 +114,7 @@ def ensemble_result(config_list : list[str], checkpoint_file_list : list[str], d
                 box_str = ' '.join(str(round(coord,4)) for coord in box)
                 f.write(str(label) + " " + str(round(score,4)) + " " + box_str +"\n")
             f.close()
-            json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
+        json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
         with open((json_dir + '/result.json'), 'w') as json_file:
             json.dump(result_annotation, json_file)
             

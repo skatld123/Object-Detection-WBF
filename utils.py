@@ -1,3 +1,4 @@
+import cv2
 import matplotlib.pyplot as plt
 import os
 import cv2 as cv
@@ -78,22 +79,22 @@ def boxPlot(boxlist, imagePath, savePath):
         imgfilePath = os.path.join(imagePath, labelfile + ".jpg")
         img = cv.imread(imgfilePath)
 
-        for filename, _, conf, (x1, y1, x2, y2) in boxlist:
+        for filename, cls, conf, (x1, y1, x2, y2) in boxlist:
             if labelfile == filename:
-                rectinfos.append((x1, y1, x2, y2, conf))
+                rectinfos.append((x1, y1, x2, y2, cls, conf))
                 
-        for x1, y1, x2, y2, conf in rectinfos:
+        for x1, y1, x2, y2, cls_id, conf in rectinfos:
             
             if conf == 1.0:
                 rectcolor = (0, 255, 0)
+                cv.rectangle(img, (x1, y1), (x2, y2), rectcolor, 4)
             else:
                 rectcolor = (0, 0, 255)
+                text = f'cls:{cls_id}/conf:{conf:.2f}'
+                cv2.putText(img, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                cv.rectangle(img, (x1, y1), (x2, y2), rectcolor, 4)
                 
-            cv.rectangle(img, (x1, y1), (x2, y2), rectcolor, 4)
         cv.imwrite(f"{savePath}/{labelfile}.jpg", img)
-
-        # img = mpimg.imread(f"{savePath}/{labelfile}.jpg")
-        # plt.axis("off")
 
 def getArea(box):
     return (box[2] - box[0] + 1) * (box[3] - box[1] + 1)

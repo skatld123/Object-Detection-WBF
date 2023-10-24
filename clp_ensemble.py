@@ -120,10 +120,14 @@ def ensemble(config_list : list[str], checkpoint_file_list : list[str], data_pat
         return result_annotation
 
 def ensemble_result(result_one : dict, result_two : dict, data_path=None, save_dir=None, iou_thr=0.5, skip_box_thr=0.25, sigma = 0.1, weights=None) :
-        if not os.path.exists(save_dir) : 
-            os.mkdir(save_dir) 
-        result_annotation = {}
-        for idx, fileName in enumerate(result_one) : 
+    if not os.path.exists(save_dir) : 
+        os.mkdir(save_dir) 
+    result_annotation = {}
+    not_matchingList = []
+    for idx, fileName in enumerate(result_one) : 
+        if fileName not in result_two :
+            not_matchingList.append(fileName)
+        else :
             # output file
             f = open(os.path.join(save_dir, fileName + ".txt"), "w+")
             wbf_box_list = []
@@ -154,10 +158,11 @@ def ensemble_result(result_one : dict, result_two : dict, data_path=None, save_d
                 box_str = ' '.join(str(round(coord,4)) for coord in box)
                 f.write(str(label) + " " + str(round(score,4)) + " " + box_str +"\n")
             f.close()
-        json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
-        with open((json_dir + '/result.json'), 'w') as json_file:
-            json.dump(result_annotation, json_file)
-        return result_annotation
+    print(f'List of undetected objects : {not_matchingList}')
+    json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
+    with open((json_dir + '/result.json'), 'w') as json_file:
+        json.dump(result_annotation, json_file)
+    return result_annotation
 
 def detection_result(config, checkpoint, data_path=None, save_dir=None, iou_thr=0.5, imgsz=1280) :
     if type(config) is str :

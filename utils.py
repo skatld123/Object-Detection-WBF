@@ -33,42 +33,42 @@ def convert_scaled_predict(size, box):
 def boundingBoxes_fromDic(labelPath, prediction : dict, imgPath) :
     detections, groundtruths, classes = [], [], []
     labelList = os.listdir(labelPath)
-    
+    no_detection = []
     print("Read Annotations and Predicts files")
     for file in tqdm(labelList):
-        
         file_path = os.path.join(labelPath, file)
         filename = os.path.splitext(file)[0]
-        
-        with open(file_path) as f:
-            labelinfos = f.readlines()
+        if filename in prediction :
+            with open(file_path) as f:
+                labelinfos = f.readlines()
 
-        imgfilepath = os.path.join(imgPath, filename + ".jpg")
-        img = cv.imread(imgfilepath)
-        h, w, _ = img.shape
+            imgfilepath = os.path.join(imgPath, filename + ".jpg")
+            img = cv.imread(imgfilepath)
+            h, w, _ = img.shape
 
-        for labelinfo in labelinfos:
-            cls, rx1, ry1, rx2, ry2 = map(float, labelinfo.strip().split())
-            x1, y1, x2, y2 = convertToAbsoluteValues((w, h), (rx1, ry1, rx2, ry2))
-            boxinfo = [filename, cls, 1, (x1, y1, x2, y2)]
-            if cls not in classes:
-                classes.append(cls)
-            groundtruths.append(boxinfo)
+            for labelinfo in labelinfos:
+                cls, rx1, ry1, rx2, ry2 = map(float, labelinfo.strip().split())
+                x1, y1, x2, y2 = convertToAbsoluteValues((w, h), (rx1, ry1, rx2, ry2))
+                boxinfo = [filename, cls, 1, (x1, y1, x2, y2)]
+                if cls not in classes:
+                    classes.append(cls)
+                groundtruths.append(boxinfo)
             
-        boxes = prediction[filename]['boxes']
-        scores = prediction[filename]['scores']
-        labels = prediction[filename]['labels']
-        
-        for box, conf, cls in zip(boxes, scores, labels) :
-            rx1, ry1, rx2, ry2 = box
-            x1, y1, x2, y2 = convert_scaled_predict((w, h), (rx1, ry1, rx2, ry2))
-            boxinfo = [filename, cls, conf, (x1, y1, x2, y2)]
-            if cls not in classes:
-                classes.append(cls)
-            detections.append(boxinfo)
-                    
+            boxes = prediction[filename]['boxes']
+            scores = prediction[filename]['scores']
+            labels = prediction[filename]['labels']
+            
+            for box, conf, cls in zip(boxes, scores, labels) :
+                rx1, ry1, rx2, ry2 = box
+                x1, y1, x2, y2 = convert_scaled_predict((w, h), (rx1, ry1, rx2, ry2))
+                boxinfo = [filename, cls, conf, (x1, y1, x2, y2)]
+                if cls not in classes:
+                    classes.append(cls)
+                detections.append(boxinfo)
+        else :
+            no_detection.append(filename)
     classes = sorted(classes)
-                
+    print(f'List of objects not detected from Two-Stage Detection : {no_detection}')
     return detections, groundtruths, classes
 
 # 라벨과 이미지 경로로부터 바운딩 박스 반환하기

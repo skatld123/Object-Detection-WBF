@@ -10,7 +10,6 @@ import pandas as pd
 from ensemble_boxes import *
 from ensemble_boxes.ensemble_boxes_nms import nms_method
 from mmdet.apis import inference_detector, init_detector
-from mmdet.registry import VISUALIZERS
 from natsort import natsorted
 from tqdm import tqdm
 from ultralytics import YOLO
@@ -34,13 +33,13 @@ def init_models(config_list, checkpoint_file_list) :
                 model_list.append(model)
         return model_list, idx_yolo, idx_mmdet
     
-def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None, mmdet_idx=None, conf_thr=0.25) : 
+def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None, mmdet_idx=None, conf_thr=0.25, imgsz=1280) : 
     file_result_list = {}
     for idx, model in enumerate(model_list) :
         for i, file in enumerate(tqdm(natsorted(glob(data_path + '*')))):
             if idx in yolo_idx :
                 file_name = Path(file).stem
-                result = model(file, imgsz=1280, iou=threshold, conf=0.25)
+                result = model(file, imgsz=imgsz, iou=threshold, conf=conf_thr)
                 output = result[0].boxes
                 boxes, conf, cls = output.xyxyn.tolist(), output.conf.tolist(), output.cls.tolist()
                 if file_name not in file_result_list:
@@ -77,12 +76,13 @@ def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None,
         print("file length : " + str(len(file_result_list)))
     return file_result_list
 
-def ensemble_result(config_list : list[str], checkpoint_file_list : list[str], data_path=None, save_dir=None, iou_thr=0.55, skip_box_thr=0.0001, sigma = 0.1, weights=None) :
+def ensemble(config_list : list[str], checkpoint_file_list : list[str], data_path=None, save_dir=None, iou_thr=0.5, skip_box_thr=0.0001, sigma = 0.1, weights=None, imgsz=1280) :
     if len(config_list) > 0 and len(checkpoint_file_list) > 0:
         model_list, idx_yolo, idx_mmdet = init_models(config_list, checkpoint_file_list)
         
-        output_dic = inference_models(model_list, data_path=data_path, threshold=0.5, yolo_idx=idx_yolo, mmdet_idx=idx_mmdet)
-            
+        output_dic = inference_models(model_list, data_path=data_path, threshold=0.5, yolo_idx=idx_yolo, mmdet_idx=idx_mmdet, imgsz=imgsz)
+        if not os.path.exists(save_dir) : 
+            os.mkdir(save_dir) 
         result_annotation = {}
         for idx, fileName in enumerate(output_dic) : 
             # output file
@@ -117,6 +117,74 @@ def ensemble_result(config_list : list[str], checkpoint_file_list : list[str], d
         json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
         with open((json_dir + '/result.json'), 'w') as json_file:
             json.dump(result_annotation, json_file)
+        return result_annotation
+
+def ensemble_result(result_one : dict, result_two : dict, data_path=None, save_dir=None, iou_thr=0.5, skip_box_thr=0.25, sigma = 0.1, weights=None) :
+        if not os.path.exists(save_dir) : 
+            os.mkdir(save_dir) 
+        result_annotation = {}
+        for idx, fileName in enumerate(result_one) : 
+            # output file
+            f = open(os.path.join(save_dir, fileName + ".txt"), "w+")
+            wbf_box_list = []
+            wbf_score_list = []
+            wbf_label_list = []
+            
+            wbf_box_list.append(result_one[fileName]['boxes'])
+            wbf_score_list.append(result_one[fileName]['scores'])
+            wbf_label_list.append(result_one[fileName]['labels'])
+            
+            wbf_box_list.append(result_two[fileName]['boxes'])
+            wbf_score_list.append(result_two[fileName]['scores'])
+            wbf_label_list.append(result_two[fileName]['labels'])
+            
+            boxes, scores, labels = weighted_boxes_fusion(wbf_box_list, wbf_score_list, wbf_label_list, weights=weights, iou_thr=iou_thr, skip_box_thr=skip_box_thr)
+            # Filtering
+            nms_boxes_list = []
+            nms_score_list = []
+            nms_labels_list = []
+            for (box_, score_, label_) in zip(boxes, scores, labels) :
+                if score_ >= 0.25 :
+                    nms_boxes_list.append(box_.tolist())
+                    nms_score_list.append(score_.tolist())
+                    nms_labels_list.append(label_.tolist())
+            # result_annotation[fileName] = {"boxes":boxes.tolist(), "scores":scores.tolist(), "labels":labels.tolist()}
+            result_annotation[fileName] = {"boxes":nms_boxes_list, "scores":nms_score_list, "labels":nms_labels_list}
+            for box, score, label in zip(nms_boxes_list, nms_score_list, nms_labels_list) :
+                box_str = ' '.join(str(round(coord,4)) for coord in box)
+                f.write(str(label) + " " + str(round(score,4)) + " " + box_str +"\n")
+            f.close()
+        json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
+        with open((json_dir + '/result.json'), 'w') as json_file:
+            json.dump(result_annotation, json_file)
+        return result_annotation
+
+def detection_result(config, checkpoint, data_path=None, save_dir=None, iou_thr=0.5, imgsz=1280) :
+    if type(config) is str :
+        config_list = [config]
+        checkpoint_file_list = [checkpoint]
+    if len(config_list) > 0 and len(checkpoint_file_list) > 0:
+        model_list, idx_yolo, idx_mmdet = init_models(config_list, checkpoint_file_list)
+        output_dic = inference_models(model_list, data_path=data_path, threshold=iou_thr, yolo_idx=idx_yolo, mmdet_idx=idx_mmdet, imgsz=imgsz)
+        if not os.path.exists(save_dir) : 
+            os.mkdir(save_dir) 
+        result_annotation = {}
+        for idx, fileName in enumerate(output_dic) : 
+            # output file
+            f = open(os.path.join(save_dir, fileName + ".txt"), "w+")
+
+            box_list = output_dic[fileName][0]["boxes_list"]  
+            score_list = output_dic[fileName][0]["score_list"]
+            label_list = output_dic[fileName][0]["label_list"]
+            result_annotation[fileName] = {"boxes":box_list, "scores":score_list, "labels":label_list}
+            for box, score, label in zip(box_list, score_list, label_list) :
+                box_str = ' '.join(str(round(coord,4)) for coord in box)
+                f.write(str(label) + " " + str(round(score,4)) + " " + box_str +"\n")
+            f.close()
+        json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
+        with open((json_dir + '/result.json'), 'w') as json_file:
+            json.dump(result_annotation, json_file)
+    return result_annotation
             
 # if __name__ == '__main__':
 #     if len(config_list) > 0 and len(checkpoint_file_list) > 0:

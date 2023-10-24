@@ -30,6 +30,47 @@ def convert_scaled_predict(size, box):
     scaled_bbox = [round(coord * scale) for coord, scale in zip(box, scale_factor)]
     return scaled_bbox[0], scaled_bbox[1], scaled_bbox[2], scaled_bbox[3]
 
+def boundingBoxes_fromDic(labelPath, prediction : dict, imgPath) :
+    detections, groundtruths, classes = [], [], []
+    labelList = os.listdir(labelPath)
+    
+    print("Read Annotations and Predicts files")
+    for file in tqdm(labelList):
+        
+        file_path = os.path.join(labelPath, file)
+        filename = os.path.splitext(file)[0]
+        
+        with open(file_path) as f:
+            labelinfos = f.readlines()
+
+        imgfilepath = os.path.join(imgPath, filename + ".jpg")
+        img = cv.imread(imgfilepath)
+        h, w, _ = img.shape
+
+        for labelinfo in labelinfos:
+            cls, rx1, ry1, rx2, ry2 = map(float, labelinfo.strip().split())
+            x1, y1, x2, y2 = convertToAbsoluteValues((w, h), (rx1, ry1, rx2, ry2))
+            boxinfo = [filename, cls, 1, (x1, y1, x2, y2)]
+            if cls not in classes:
+                classes.append(cls)
+            groundtruths.append(boxinfo)
+            
+        boxes = prediction[filename]['boxes']
+        scores = prediction[filename]['scores']
+        labels = prediction[filename]['labels']
+        
+        for box, conf, cls in zip(boxes, scores, labels) :
+            rx1, ry1, rx2, ry2 = box
+            x1, y1, x2, y2 = convert_scaled_predict((w, h), (rx1, ry1, rx2, ry2))
+            boxinfo = [filename, cls, conf, (x1, y1, x2, y2)]
+            if cls not in classes:
+                classes.append(cls)
+            detections.append(boxinfo)
+                    
+    classes = sorted(classes)
+                
+    return detections, groundtruths, classes
+
 # 라벨과 이미지 경로로부터 바운딩 박스 반환하기
 def boundingBoxes(labelPath, predictPath, imagePath):
     detections, groundtruths, classes = [], [], []
@@ -182,10 +223,9 @@ def ElevenPointInterpolatedAP(rec, prec):
 
     return [ap, rhoInterp, recallValues, None]
 
-def AP(detections, groundtruths, classes, IOUThreshold = 0.5, method = 'AP'):
-    
+def AP(detections, groundtruths, classes, IOUThreshold = 0.5, method = 'AP', save_img=False, save_path=None):
+    print("Save False Positive Img and Calcuating AP per Class")
     result = []
-    
     for c in classes:
 
         dects = [d for d in detections if d[1] == c]
@@ -206,9 +246,7 @@ def AP(detections, groundtruths, classes, IOUThreshold = 0.5, method = 'AP'):
         for key, val in det.items():
             det[key] = np.zeros(val)
 
-
-        for d in range(len(dects)):
-
+        for d in tqdm(range(len(dects))):
 
             gt = [gt for gt in gts if gt[0] == dects[d][0]]
 
@@ -219,15 +257,32 @@ def AP(detections, groundtruths, classes, IOUThreshold = 0.5, method = 'AP'):
                 if iou1 > iouMax:
                     iouMax = iou1
                     jmax = j
-
+            # dects[d][0] -> filename, label, conf, (box)
             if iouMax >= IOUThreshold:
                 if det[dects[d][0]][jmax] == 0:
                     TP[d] = 1
                     det[dects[d][0]][jmax] = 1
                 else:
                     FP[d] = 1
+                    # if save_img :
+                    #     img = cv.imread(os.path.join('/root/dataset_clp/dataset_v2/test/images', dects[d][0] + ".jpg"))
+                    #     x1, y1, x2, y2 = dects[d][3]
+                    #     rectcolor = (0, 0, 255)
+                    #     text = f'cls:{dects[d][1]}/conf:{round(dects[d][2], 2):.2f}'
+                    #     cv2.putText(img, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, rectcolor, 2)
+                    #     cv.rectangle(img, (x1, y1), (x2, y2), rectcolor, 4)
+                    #     cv.imwrite(os.path.join(save_path, f"{d}_{round(dects[d][0], 2)}.jpg"))
+                                
             else:
                 FP[d] = 1
+                if save_img :
+                        img = cv.imread(os.path.join('/root/dataset_clp/dataset_v2/test/images', dects[d][0] + ".jpg"))
+                        x1, y1, x2, y2 = dects[d][3]
+                        rectcolor = (0, 0, 255)
+                        text = f'cls:{dects[d][1]}/conf:{round(dects[d][2], 2):.2f}'
+                        cv2.putText(img, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, rectcolor, 2)
+                        cv.rectangle(img, (x1, y1), (x2, y2), rectcolor, 4)
+                        cv.imwrite(os.path.join(save_path, f"{dects[d][0]}_{round(dects[d][2], 2)}.jpg"), img)
 
         acc_FP = np.cumsum(FP)
         acc_TP = np.cumsum(TP)
@@ -264,7 +319,7 @@ def mAP(result):
     return mAP
 
 
-def cal_mAP(num2class, detections, groundtruths, classes):
+def cal_mAP(num2class, detections, groundtruths, classes, save_img=False, save_path=None):
     # IoU
     boxA = detections[-1][-1]
     boxB = groundtruths[-1][-1]
@@ -279,7 +334,7 @@ def cal_mAP(num2class, detections, groundtruths, classes):
         f"Intersection area of boxA and boxB : {getIntersectionArea(boxA, boxB)}")
     print(f"IoU of boxA and boxB : {iou(boxA, boxB)}")
 
-    result = AP(detections, groundtruths, classes)
+    result = AP(detections, groundtruths, classes, save_img=save_img, save_path=save_path)
 
     for r in result:
         print("{:^8} AP : {}".format(num2class[str(r['class'])], r['AP']))

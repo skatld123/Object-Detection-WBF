@@ -3,7 +3,7 @@ import json
 import os
 from glob import glob
 from pathlib import Path
-
+import pycocotools
 import mmcv
 import numpy as np
 import pandas as pd
@@ -13,6 +13,7 @@ from mmdet.apis import inference_detector, init_detector
 from natsort import natsorted
 from tqdm import tqdm
 from ultralytics import YOLO
+
 
 def init_models(config_list, checkpoint_file_list) :
     model_list = []
@@ -24,7 +25,7 @@ def init_models(config_list, checkpoint_file_list) :
     else :
         for idx, (config, cf) in enumerate(zip(config_list, checkpoint_file_list)) :
             if 'yolo' in cf : 
-                model = YOLO(cf)
+                model = YOLO(cf, task='test')
                 idx_yolo.append(idx)
                 model_list.append(model)
             else :
@@ -33,13 +34,13 @@ def init_models(config_list, checkpoint_file_list) :
                 model_list.append(model)
         return model_list, idx_yolo, idx_mmdet
     
-def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None, mmdet_idx=None, conf_thr=0.25, imgsz=1280) : 
+def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None, mmdet_idx=None, conf_thr=0.25, imgsz=None) : 
     file_result_list = {}
     for idx, model in enumerate(model_list) :
         for i, file in enumerate(tqdm(natsorted(glob(data_path + '*')))):
             if idx in yolo_idx :
                 file_name = Path(file).stem
-                result = model(file, imgsz=imgsz, iou=threshold, conf=conf_thr)
+                result = model(file, imgsz=imgsz, iou=threshold, conf=conf_thr, device=[0,1])
                 output = result[0].boxes
                 boxes, conf, cls = output.xyxyn.tolist(), output.conf.tolist(), output.cls.tolist()
                 if file_name not in file_result_list:
@@ -50,6 +51,7 @@ def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None,
                 img = mmcv.imread(file)
                 ori_h, ori_w, _ = img.shape
                 scale_factor = [ori_w, ori_h, ori_w, ori_h]
+                # img = mmcv.imresize(img, (imgsz, imgsz))
                 result = inference_detector(model, img)
                 
                 result = result.pred_instances
@@ -66,13 +68,17 @@ def inference_models(model_list : list, data_path, threshold=0.5, yolo_idx=None,
                         nms_boxes_list.append(scaled_bbox)
                         nms_score_list.append(score_)
                         nms_labels_list.append(label_)
-                if nms_boxes_list :
-                    nms_boxes_list, nms_score_list, nms_labels_list = nms_method([nms_boxes_list], [nms_score_list], [nms_labels_list], weights=None, iou_thr=0.5, method=2)
-                else : continue
-
+                # if nms_boxes_list :
+                    # nms_boxes_list, nms_score_list, nms_labels_list = nms([nms_boxes_list], [nms_score_list], [nms_labels_list], weights=None, iou_thr=0.5, method=2)
+                    # nms_boxes_list, nms_score_list, nms_labels_list = nms([nms_boxes_list], [nms_score_list], [nms_labels_list], iou_thr=0.5)
+                # else : continue
+                if not isinstance(nms_boxes_list,list) :
+                    nms_boxes_list = nms_boxes_list.tolist()
+                    nms_score_list = nms_score_list.tolist()
+                    nms_labels_list = nms_labels_list.tolist()
                 if file_name not in file_result_list :
-                    file_result_list[file_name] = [{"boxes_list":nms_boxes_list.tolist(), "score_list":nms_score_list.tolist(), "label_list":nms_labels_list.tolist()}]
-                else : file_result_list[file_name].append({"boxes_list":nms_boxes_list.tolist(), "score_list":nms_score_list.tolist(), "label_list":nms_labels_list.tolist()})
+                    file_result_list[file_name] = [{"boxes_list":nms_boxes_list, "score_list":nms_score_list, "label_list":nms_labels_list}]
+                else : file_result_list[file_name].append({"boxes_list":nms_boxes_list, "score_list":nms_score_list, "label_list":nms_labels_list})
         print("file length : " + str(len(file_result_list)))
     return file_result_list
 
@@ -119,7 +125,10 @@ def ensemble(config_list : list[str], checkpoint_file_list : list[str], data_pat
             json.dump(result_annotation, json_file)
         return result_annotation
 
-def ensemble_result(result_one : dict, result_two : dict, data_path=None, save_dir=None, iou_thr=0.5, skip_box_thr=0.25, sigma = 0.1, weights=None) :
+def ensemble_result(result_one : dict, result_two : dict, data_path=None, save_dir=None, save_json_dir=None, iou_thr=0.5, skip_box_thr=0.25, sigma = 0.1, weights=None) :
+    ''' 1 단계 검출과 2 단계 검출의 결과를 Dictionary로 받아 앙상블하는 과정\n
+    save_dir : YOLO 형식의 라벨이 저장될 디렉토리
+    ''' 
     if not os.path.exists(save_dir) : 
         os.mkdir(save_dir) 
     result_annotation = {}
@@ -159,12 +168,12 @@ def ensemble_result(result_one : dict, result_two : dict, data_path=None, save_d
                 f.write(str(label) + " " + str(round(score,4)) + " " + box_str +"\n")
             f.close()
     print(f'List of undetected objects : {not_matchingList}')
-    json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
-    with open((json_dir + '/result.json'), 'w') as json_file:
+    print(f'Counts undetected objects : {len(not_matchingList)}')
+    with open(save_json_dir, 'w') as json_file:
         json.dump(result_annotation, json_file)
     return result_annotation
 
-def detection_result(config, checkpoint, data_path=None, save_dir=None, iou_thr=0.5, imgsz=1280) :
+def detection_result(config, checkpoint, data_path=None, save_dir=None, save_json_dir=None, iou_thr=0.5, imgsz=1280) :
     if type(config) is str :
         config_list = [config]
         checkpoint_file_list = [checkpoint]
@@ -186,8 +195,7 @@ def detection_result(config, checkpoint, data_path=None, save_dir=None, iou_thr=
                 box_str = ' '.join(str(round(coord,4)) for coord in box)
                 f.write(str(label) + " " + str(round(score,4)) + " " + box_str +"\n")
             f.close()
-        json_dir = os.path.abspath(os.path.join(save_dir, os.pardir))
-        with open((json_dir + '/result.json'), 'w') as json_file:
+        with open(save_json_dir, 'w') as json_file:
             json.dump(result_annotation, json_file)
     return result_annotation
             

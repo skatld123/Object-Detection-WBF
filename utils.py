@@ -1,12 +1,14 @@
-import cv2
-import matplotlib.pyplot as plt
+import ast
 import os
+from collections import Counter
+
+import cv2
 import cv2 as cv
-import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
-from collections import Counter
+
 
 # num2class = {"0.0" : "license-plate", "1.0" : "vehicle"}
 # # box : (centerX, centerY, width, height)
@@ -49,6 +51,7 @@ def boundingBoxes_fromDic(labelPath, prediction : dict, imgPath) :
             for labelinfo in labelinfos:
                 cls, rx1, ry1, rx2, ry2 = map(float, labelinfo.strip().split())
                 x1, y1, x2, y2 = convertToAbsoluteValues((w, h), (rx1, ry1, rx2, ry2))
+                f
                 boxinfo = [filename, cls, 1, (x1, y1, x2, y2)]
                 if cls not in classes:
                     classes.append(cls)
@@ -73,6 +76,11 @@ def boundingBoxes_fromDic(labelPath, prediction : dict, imgPath) :
 
 # 라벨과 이미지 경로로부터 바운딩 박스 반환하기
 def boundingBoxes(labelPath, predictPath, imagePath):
+    ''' YOLO형식의 GT, Predicts txt파일을 통해 dt, gt, cls 배열로 반환해주는 메서드 \n
+    labelPath : YOLO형식의 GroundTruth 디렉토리 \n
+    predictPath : YOLO형식의 Predict 디렉토리 \n
+    imagePath : 해당되는 이미지 
+    ''' 
     detections, groundtruths, classes = [], [], []
     gt_and_prediect = [labelPath, predictPath]
     print("Read Annotations and Predict")
@@ -117,6 +125,9 @@ def boxPlot(boxlist, imagePath, savePath):
     for labelfile in tqdm(labelfiles):
         rectinfos = []
         imgfilePath = os.path.join(imagePath, labelfile + ".jpg")
+        if not os.path.exists(imgfilePath) :
+            print(f"ERROR : {imgfilePath} does not exist")
+            return
         img = cv.imread(imgfilePath)
 
         for filename, cls, conf, (x1, y1, x2, y2) in boxlist:

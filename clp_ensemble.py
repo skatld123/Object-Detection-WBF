@@ -129,8 +129,7 @@ def ensemble_result(result_one : dict, result_two : dict, data_path=None, save_d
     ''' 1 단계 검출과 2 단계 검출의 결과를 Dictionary로 받아 앙상블하는 과정\n
     save_dir : YOLO 형식의 라벨이 저장될 디렉토리
     ''' 
-    if not os.path.exists(save_dir) : 
-        os.mkdir(save_dir) 
+    os.makedirs(save_dir, exist_ok=True) 
     result_annotation = {}
     not_matchingList = []
     for idx, fileName in enumerate(result_one) : 
@@ -180,8 +179,7 @@ def detection_result(config, checkpoint, data_path=None, save_dir=None, save_jso
     if len(config_list) > 0 and len(checkpoint_file_list) > 0:
         model_list, idx_yolo, idx_mmdet = init_models(config_list, checkpoint_file_list)
         output_dic = inference_models(model_list, data_path=data_path, threshold=iou_thr, yolo_idx=idx_yolo, mmdet_idx=idx_mmdet, imgsz=imgsz)
-        if not os.path.exists(save_dir) : 
-            os.mkdir(save_dir) 
+        os.makedirs(save_dir,exist_ok=True) 
         result_annotation = {}
         for idx, fileName in enumerate(output_dic) : 
             # output file
